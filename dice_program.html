@@ -3,15 +3,50 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Global Drag Snowy Dice</title>
+    <title>Global Drag Snowy Dice with Stop</title>
     <style>
         body { margin: 0; overflow: hidden; background: linear-gradient(to bottom, #1e3c72 0%, #2a5298 100%); cursor: crosshair; }
         body:active { cursor: grabbing; }
-        #ui { position: absolute; top: 10px; left: 10px; color: white; font-family: sans-serif; pointer-events: none; text-shadow: 1px 1px 2px black; }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            pointer-events: none; /* Allows clicking through the container */
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #1e3c72;
+            background: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            pointer-events: auto; /* Enables clicking the button itself */
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+            transition: transform 0.2s, background 0.2s;
+        }
+
+        button:hover {
+            background: #add8e6;
+            transform: scale(1.05);
+        }
+
+        button:active {
+            transform: scale(0.95);
+        }
     </style>
 </head>
 <body>
-    <div id="ui">Click and drag anywhere to throw the dice!</div>
+
+    <div id="controls">
+        <button id="stopBtn">Stop Dice</button>
+    </div>
+
     <script type="importmap">
         { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
     </script>
@@ -66,13 +101,15 @@
             dots[pips].forEach(pos => { ctx.beginPath(); ctx.arc(pos[0], pos[1], r, 0, Math.PI*2); ctx.fill(); });
             return new THREE.CanvasTexture(canvas);
         }
-        const dice = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshLambertMaterial({ map: createDiceFace(n) })));
+        // Face order: +x, -x, +y, -y, +z, -z
+        const dice = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), [1, 2, 3, 4, 5, 6].map(n => new THREE.MeshLambertMaterial({ map: createDiceFace(n) })));
         scene.add(dice);
 
-        // --- 4. Physics & Drag Logic ---
+        // --- 4. Physics & State ---
         let px = 0, py = 0, vx = 0.1, vy = 0.1, rx = 0.05, ry = 0.05;
         const gravity = -0.006, bounce = 0.94;
         let isDragging = false;
+        let isStopped = false;
         let bounds = {};
 
         function updateBounds() {
@@ -81,56 +118,63 @@
         }
         updateBounds();
 
-        // Convert mouse coordinates to world coordinates
+        // --- 5. Button Logic ---
+        document.getElementById('stopBtn').addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent drag triggering on click
+            isStopped = true;
+            isDragging = false;
+            
+            // Reset position to center
+            px = 0; py = 0;
+            vx = 0; vy = 0;
+            rx = 0; ry = 0;
+
+            // Reset rotation to show face "5" (the +z face in our array)
+            dice.rotation.set(0, 0, 0);
+        });
+
+        // --- 6. Interaction ---
         function getMouseWorldPos(e) {
             const x = (e.clientX / window.innerWidth) * 2 - 1;
             const y = -(e.clientY / window.innerHeight) * 2 + 1;
-            const vector = new THREE.Vector3(x, y, 0).unproject(camera);
-            return vector;
+            return new THREE.Vector3(x, y, 0).unproject(camera);
         }
 
-        window.addEventListener('pointerdown', (e) => {
-            isDragging = true;
+        window.addEventListener('pointerdown', () => { 
+            isStopped = false; // Resume physics on click
+            isDragging = true; 
         });
 
         window.addEventListener('pointermove', (e) => {
             if (!isDragging) return;
             const worldPos = getMouseWorldPos(e);
-            
-            // Velocity is distance moved since last frame
             vx = (worldPos.x - dice.position.x) * 0.5;
             vy = (worldPos.y - dice.position.y) * 0.5;
-            
-            px = worldPos.x;
-            py = worldPos.y;
-            
-            // Spin it based on drag speed
-            rx = vy * 0.5;
-            ry = vx * 0.5;
+            px = worldPos.x; py = worldPos.y;
+            rx = vy * 0.5; ry = vx * 0.5;
         });
 
         window.addEventListener('pointerup', () => { isDragging = false; });
 
-        // --- 5. Animation ---
+        // --- 7. Animation Loop ---
         function animate() {
             requestAnimationFrame(animate);
 
-            if (!isDragging) {
-                vy += gravity;
-                px += vx; py += vy;
+            if (!isStopped) {
+                if (!isDragging) {
+                    vy += gravity;
+                    px += vx; py += vy;
 
-                // Wall Collisions
-                if (px > bounds.r || px < bounds.l) { vx *= -bounce; px = (px > bounds.r) ? bounds.r : bounds.l; rx *= 1.2; }
-                if (py > bounds.t || py < bounds.b) { vy *= -bounce; py = (py > bounds.t) ? bounds.t : bounds.b; ry *= 1.2; }
+                    if (px > bounds.r || px < bounds.l) { vx *= -bounce; px = Math.max(bounds.l, Math.min(px, bounds.r)); }
+                    if (py > bounds.t || py < bounds.b) { vy *= -bounce; py = Math.max(bounds.b, Math.min(py, bounds.t)); }
+                }
 
                 dice.position.set(px, py, 0);
                 dice.rotation.x += rx;
                 dice.rotation.y += ry;
             } else {
-                // Dragging mode
-                dice.position.set(px, py, 0);
-                dice.rotation.x += rx;
-                dice.rotation.y += ry;
+                // If stopped, keep it exactly at center
+                dice.position.set(0, 0, 0);
             }
 
             // Snow
