@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Chaos Bouncing Dice</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #111; }
+        canvas { display: block; }
+        #instructions {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            font-family: monospace;
+            pointer-events: none;
+            background: rgba(0,0,0,0.5);
+            padding: 5px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div id="instructions">Three.js: Viewport Wall Bounce</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- 1. Scene Setup ---
+        const scene = new THREE.Scene();
+        
+        // We use orthographic for screen-edge bouncing, 
+        // as it makes screen-space math much easier.
+        const aspect = window.innerWidth / window.innerHeight;
+        const d = 5; // Frustum size
+        const camera = new THREE.OrthographicCamera(-d * aspect, d * aspect, d, -d, 0.1, 1000);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. Lights ---
+        scene.add(new THREE.AmbientLight(0xffffff, 0.8));
+        const pointLight = new THREE.PointLight(0xffffff, 100);
+        pointLight.position.set(5, 5, 5);
+        scene.add(pointLight);
+
+        // --- 3. Creating the Dice (Canvas Textures) ---
+        function createDiceFace(number) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 128; canvas.height = 128;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 128, 128);
+            ctx.strokeStyle = 'black'; ctx.lineWidth = 10; ctx.strokeRect(0, 0, 128, 128);
+            ctx.fillStyle = 'black'; ctx.font = 'bold 90px Arial';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText(number, 64, 64);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const materials = [1, 2, 3, 4, 5, 6].map(num => new THREE.MeshLambertMaterial({ map: createDiceFace(num) }));
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const dice = new THREE.Mesh(geometry, materials);
+        scene.add(dice);
+
+        // --- 4. Physics Variables & Boundaries ---
+        // State
+        let posX = 0, posY = 0;
+        let velX = 0.1, velY = 0.1;
+        let rotX = 0, rotY = 0;
+
+        // Constants
+        const gravity = -0.005;
+        const friction = 0.99; // Air resistance
+        const bounce = 0.99;   // HIGH BOUNCYNESS (Energy retention on hit)
+        
+        // Initial spin
+        rotX = Math.random() * 0.1;
+        rotY = Math.random() * 0.1;
+
+        camera.position.z = 10;
+
+        // Function to update screen boundaries based on camera frustum
+        let bounds = {};
+        function updateBounds() {
+            bounds = {
+                right: camera.right - 0.5, // 0.5 is half the cube width
+                left: camera.left + 0.5,
+                top: camera.top - 0.5,
+                bottom: camera.bottom + 0.5
+            };
+        }
+        updateBounds();
+
+        // --- 5. Animation Loop ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // 1. Apply Physics
+            velY += gravity;  // Gravity affects vertical velocity
+            velX *= friction; // Air resistance affects horizontal velocity
+
+            posX += velX;
+            posY += velY;
+
+            // 2. Collision Detection (Walls/Edges)
+
+            // Right Wall
+            if (posX > bounds.right) {
+                posX = bounds.right;
+                velX = -velX * bounce; // Reverse horizontal, apply bounce loss
+                // Introduce random spin change on collision
+                rotX += (Math.random() - 0.5) * 0.1;
+                rotY += (Math.random() - 0.5) * 0.1;
+            }
+            // Left Wall
+            if (posX < bounds.left) {
+                posX = bounds.left;
+                velX = -velX * bounce;
+                rotX += (Math.random() - 0.5) * 0.1;
+                rotY += (Math.random() - 0.5) * 0.1;
+            }
+            // Ceiling
+            if (posY > bounds.top) {
+                posY = bounds.top;
+                velY = -velY * bounce;
+            }
+            // Floor
+            if (posY < bounds.bottom) {
+                posY = bounds.bottom;
+                velY = -velY * bounce;
+                // Add minor random variation to x velocity on floor hit
+                // to prevent perfectly vertical bouncing.
+                velX += (Math.random() - 0.5) * 0.02;
+            }
+
+            // 3. Update Mesh Properties
+            dice.position.x = posX;
+            dice.position.y = posY;
+            dice.rotation.x += rotX;
+            dice.rotation.y += rotY;
+
+            // Continual slow rotation even when not bouncing wildly
+            dice.rotation.z += 0.002; 
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle Window Resize
+        window.addEventListener('resize', () => {
+            const aspect = window.innerWidth / window.innerHeight;
+            
+            // For Orthographic, we update the frustum bounds
+            camera.left = -d * aspect;
+            camera.right = d * aspect;
+            camera.updateProjectionMatrix();
+            
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            updateBounds(); // Crucial: update physics bounds when screen changes
+        });
+
+        animate();
+    </script>
+</body>
+</html>
