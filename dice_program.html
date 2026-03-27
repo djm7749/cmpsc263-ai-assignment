@@ -3,14 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Snowy Bouncing Dice</title>
+    <title>Bouncy Pip Dice in the Snow</title>
     <style>
-        body { margin: 0; overflow: hidden; }
+        body { margin: 0; overflow: hidden; background: linear-gradient(to bottom, #1e3c72 0%, #2a5298 100%); }
         canvas { display: block; }
-        /* CSS Gradient for the Sky */
-        body {
-            background: linear-gradient(to bottom, #1e3c72 0%, #2a5298 100%);
-        }
     </style>
 </head>
 <body>
@@ -25,7 +21,7 @@
     <script type="module">
         import * as THREE from 'three';
 
-        // --- 1. Scene & Camera ---
+        // --- 1. Scene & Camera Setup ---
         const scene = new THREE.Scene();
         const aspect = window.innerWidth / window.innerHeight;
         const d = 5; 
@@ -37,82 +33,119 @@
         document.body.appendChild(renderer.domElement);
 
         // --- 2. Lighting ---
-        scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-        const dirLight = new THREE.DirectionalLight(0xffffff, 2);
-        dirLight.position.set(5, 10, 5);
+        scene.add(new THREE.AmbientLight(0xffffff, 0.7));
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
+        dirLight.position.set(5, 10, 7);
         scene.add(dirLight);
 
-        // --- 3. The Floor (Light Blue) ---
-        const floorGeo = new THREE.PlaneGeometry(20, 2);
+        // --- 3. The Floor ---
+        const floorGeo = new THREE.PlaneGeometry(50, 4);
         const floorMat = new THREE.MeshLambertMaterial({ color: 0xadd8e6 });
         const floor = new THREE.Mesh(floorGeo, floorMat);
-        floor.position.y = -4.5; // Placed at the bottom
+        floor.position.y = -4.8; 
         scene.add(floor);
 
-        // --- 4. The Snow Particles ---
-        const snowCount = 1000;
+        // --- 4. Snow Particles ---
+        const snowCount = 1200;
         const snowGeo = new THREE.BufferGeometry();
         const snowPos = new Float32Array(snowCount * 3);
-
         for (let i = 0; i < snowCount * 3; i += 3) {
-            snowPos[i] = (Math.random() - 0.5) * 20;  // X
-            snowPos[i+1] = (Math.random() - 0.5) * 10; // Y
-            snowPos[i+2] = (Math.random() - 0.5) * 10; // Z
+            snowPos[i] = (Math.random() - 0.5) * 25; 
+            snowPos[i+1] = (Math.random() - 0.5) * 15;
+            snowPos[i+2] = (Math.random() - 0.5) * 10;
         }
         snowGeo.setAttribute('position', new THREE.BufferAttribute(snowPos, 3));
-        const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.05 });
+        const snowMat = new THREE.PointsMaterial({ color: 0xffffff, size: 0.06 });
         const snowPoints = new THREE.Points(snowGeo, snowMat);
         scene.add(snowPoints);
 
-        // --- 5. The Dice ---
-        function createDiceFace(number) {
+        // --- 5. Creating Pip (Dot) Textures ---
+        function createDiceFace(pips) {
             const canvas = document.createElement('canvas');
             canvas.width = 128; canvas.height = 128;
             const ctx = canvas.getContext('2d');
-            ctx.fillStyle = 'white'; ctx.fillRect(0, 0, 128, 128);
-            ctx.strokeStyle = '#2a5298'; ctx.lineWidth = 10; ctx.strokeRect(0, 0, 128, 128);
-            ctx.fillStyle = '#2a5298'; ctx.font = 'bold 80px Arial';
-            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-            ctx.fillText(number, 64, 64);
+            
+            // Background & Border
+            ctx.fillStyle = '#f0f0f0';
+            ctx.fillRect(0, 0, 128, 128);
+            ctx.strokeStyle = '#2a5298';
+            ctx.lineWidth = 12;
+            ctx.strokeRect(0, 0, 128, 128);
+
+            // Dot Settings
+            ctx.fillStyle = '#111';
+            const r = 12; // dot radius
+            const m = 32; // margin
+            const c = 64; // center
+            const p = 96; // opposite side
+
+            const dotPositions = {
+                1: [[c, c]],
+                2: [[m, m], [p, p]],
+                3: [[m, m], [c, c], [p, p]],
+                4: [[m, m], [p, m], [m, p], [p, p]],
+                5: [[m, m], [p, m], [c, c], [m, p], [p, p]],
+                6: [[m, m], [p, m], [m, c], [p, c], [m, p], [p, p]]
+            };
+
+            dotPositions[pips].forEach(pos => {
+                ctx.beginPath();
+                ctx.arc(pos[0], pos[1], r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
             return new THREE.CanvasTexture(canvas);
         }
 
-        const materials = [1, 2, 3, 4, 5, 6].map(n => new THREE.MeshLambertMaterial({ map: createDiceFace(n) }));
-        const dice = new THREE.Mesh(new THREE.BoxGeometry(1,1,1), materials);
+        const materials = [1, 6, 2, 5, 3, 4].map(n => new THREE.MeshLambertMaterial({ map: createDiceFace(n) }));
+        const dice = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), materials);
         scene.add(dice);
 
-        // --- 6. Physics Logic ---
-        let px = 0, py = 0, vx = 0.08, vy = 0.1;
-        const gravity = -0.004;
-        const bounce = 0.95;
+        // --- 6. Physics State ---
+        let px = 0, py = 2;
+        let vx = 0.12, vy = 0.15; // Increased starting speed
+        let rx = 0.05, ry = 0.05; // Initial rotation speed
+        
+        const gravity = -0.006;  // Stronger gravity
+        const bounce = 0.98;     // Extremely bouncy
         let bounds = {};
 
         function updateBounds() {
             const aspect = window.innerWidth / window.innerHeight;
-            bounds = { r: d * aspect - 0.5, l: -d * aspect + 0.5, t: d - 0.5, b: -d + 0.5 };
+            bounds = { r: (d * aspect) - 0.5, l: (-d * aspect) + 0.5, t: d - 0.5, b: -d + 0.5 };
         }
         updateBounds();
 
-        // --- 7. Animation ---
+        // --- 7. Animation Loop ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Dice Physics
+            // Apply Movement
             vy += gravity;
             px += vx; py += vy;
 
-            if (px > bounds.r || px < bounds.l) { vx *= -bounce; px = Math.max(bounds.l, Math.min(px, bounds.r)); }
-            if (py > bounds.t) { py = bounds.t; vy *= -bounce; }
-            if (py < bounds.b) { py = bounds.b; vy *= -bounce; }
+            // Collision Detection
+            if (px > bounds.r || px < bounds.l) {
+                vx *= -bounce;
+                px = (px > bounds.r) ? bounds.r : bounds.l;
+                rx = (Math.random() - 0.5) * 0.2; // Spin shift on hit
+            }
+            if (py > bounds.t || py < bounds.b) {
+                vy *= -bounce;
+                py = (py > bounds.t) ? bounds.t : bounds.b;
+                ry = (Math.random() - 0.5) * 0.2; // Spin shift on hit
+            }
 
+            // Update Mesh
             dice.position.set(px, py, 0);
-            dice.rotation.x += 0.02; dice.rotation.y += 0.02;
+            dice.rotation.x += rx;
+            dice.rotation.y += ry;
 
             // Snow Animation
             const positions = snowPoints.geometry.attributes.position.array;
             for (let i = 1; i < positions.length; i += 3) {
-                positions[i] -= 0.02; // Move down
-                if (positions[i] < -5) positions[i] = 5; // Reset to top
+                positions[i] -= 0.025; 
+                if (positions[i] < -5) positions[i] = 5; 
             }
             snowPoints.geometry.attributes.position.needsUpdate = true;
 
@@ -125,7 +158,6 @@
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             updateBounds();
-            floor.scale.x = aspect * 5; 
         });
 
         animate();
