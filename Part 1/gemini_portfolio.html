@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Professional Portfolio</title>
+    <style>
+        /* CSS - The Design */
+        :root {
+            --primary: #2563eb;
+            --dark: #1e293b;
+            --light: #f8fafc;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            background-color: var(--light);
+            color: var(--dark);
+            line-height: 1.6;
+        }
+
+        header {
+            background: white;
+            padding: 2rem;
+            text-align: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 2rem auto;
+            padding: 0 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            transition: transform 0.3s ease;
+            cursor: pointer;
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            border-left: 5px solid var(--primary);
+        }
+
+        .btn {
+            display: inline-block;
+            background: var(--primary);
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 10px;
+        }
+
+        #contact-status {
+            margin-top: 10px;
+            font-weight: bold;
+            color: green;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Hi, I'm <span style="color:var(--primary)">Alex Developer</span></h1>
+        <p>Full-Stack Engineer | UI/UX Enthusiast | Problem Solver</p>
+    </header>
+
+    <div class="container">
+        <h2>My Projects</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>E-Commerce Site</h3>
+                <p>A fully functional shop built with React and Node.js.</p>
+                <a href="#" class="btn">View Project</a>
+            </div>
+
+            <div class="card">
+                <h3>Weather App</h3>
+                <p>Real-time weather tracking using OpenWeather API.</p>
+                <a href="#" class="btn">View Project</a>
+            </div>
+
+            <div class="card">
+                <h3>Task Manager</h3>
+                <p>A productivity tool with drag-and-drop features.</p>
+                <a href="#" class="btn">View Project</a>
+            </div>
+        </div>
+
+        <hr style="margin: 3rem 0; border: 0; border-top: 1px solid #ccc;">
+
+        <h2>Contact Me</h2>
+        <button class="btn" onclick="sayHello()">Send a "Hello"</button>
+        <p id="contact-status"></p>
+    </div>
+
+    <script>
+        /* JS - The Interaction */
+        function sayHello() {
+            const status = document.getElementById('contact-status');
+            status.innerText = "Thanks for reaching out! I'll get back to you soon.";
+            
+            // Log a little easter egg in the console
+            console.log("Contact button clicked!");
+        }
+    </script>
+</body>
+</html>
